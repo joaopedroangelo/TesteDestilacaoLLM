@@ -2,6 +2,7 @@
 import torch
 from transformers import DistilBertForSequenceClassification, BertForSequenceClassification, DistilBertTokenizer
 from transformers import Trainer, TrainingArguments
+# O dataset é o LIAR do Hugging Face: ucsbnlp/liar 
 from datasets import load_dataset
 
 
