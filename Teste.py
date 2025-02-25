@@ -14,13 +14,16 @@ device = torch.device("cpu")
 print("Carregando dataset...")
 dataset = load_dataset("ag_news")
 
+
 # Criar um conjunto de treino pequeno
 train_dataset = sample_dataset(dataset["train"], label_column="label", num_samples=16)
 eval_dataset = dataset["test"]
 
+
 # Criar um dataset não rotulado para destilação
 unlabeled_train_dataset = dataset["train"].shuffle(seed=42).select(range(500))
 unlabeled_train_dataset = unlabeled_train_dataset.remove_columns("label")
+
 
 # Definir modelo professor (mais robusto)
 print("Carregando modelo professor...")
@@ -39,11 +42,13 @@ teacher_trainer = Trainer(
     eval_dataset=eval_dataset,
 )
 
+
 # Treinar modelo professor
 print("Treinando modelo professor...")
 teacher_trainer.train()
 teacher_metrics = teacher_trainer.evaluate()
 print("Métricas do modelo professor:", teacher_metrics)
+
 
 # Definir modelo aluno (mais leve)
 print("Carregando modelo aluno...")
@@ -57,6 +62,7 @@ distillation_args = TrainingArguments(
     max_steps=500,
 )
 
+
 # Configurar a destilação
 distillation_trainer = DistillationTrainer(
     teacher_model=teacher_model,
@@ -65,6 +71,7 @@ distillation_trainer = DistillationTrainer(
     train_dataset=unlabeled_train_dataset,
     eval_dataset=eval_dataset,
 )
+
 
 # Treinar modelo aluno com destilação
 print("Treinando modelo aluno com destilação...")
