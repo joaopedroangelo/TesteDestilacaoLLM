@@ -1,73 +1,74 @@
 # Destilação de Modelos
 
-> Modelo Professor:<br> 
-> Modelo Aluno: 
+> Modelo Professor: sentence-transformers/paraphrase-mpnet-base-v2<br><br> 
+> Modelo Aluno: sentence-transformers/paraphrase-MiniLM-L3-v2
 
 ---
 ### Objetivo:
-- Este código tem como objetivo realizar a distilação de conhecimento de um modelo maior (BERT) para um modelo menor (DistilBERT) utilizando o dataset LIAR, que é utilizado para classificar declarações como verdadeiras, falsas ou sem base para uma conclusão.
+- Este código tem como objetivo realizar a distilação de conhecimento de um modelo maior para um modelo menor utilizando o dataset AG News, que contém notícias classificadas em quatro categorias: Mundo, Esportes, Negócios e Ciência/Tecnologia.
 
-- A técnica de distilação de conhecimento permite que um modelo menor aprenda a partir das previsões de um modelo maior, mantendo uma boa performance com menos parâmetros.
+- A técnica de destilação de conhecimento permite que um modelo menor aprenda a partir das previsões de um modelo maior, mantendo uma boa performance com menos parâmetros e reduzindo os requisitos computacionais para inferência.
 
 ---
 ### Bibliotecas
 
-- **torch**: Utilizado para treinamento, calcular a perda de informação e otimizar os parâmetros do modelo.
+- **SetFit**: Biblioteca otimizada para classificação de textos baseada em embeddings de frases, permitindo o treinamento eficiente de modelos de classificação sem a necessidade de ajustes finos demorados.
 
-- **transformers**: A biblioteca `transformers` da Hugging Face contém modelos prontos de NLP (Natural Language Processing) como BERT e DistilBERT, além de fornecer ferramentas para tokenização e treinamento de modelos.
+- **Datasets**: A biblioteca `datasets` da Hugging Face permite o fácil acesso e manipulação de conjuntos de dados NLP de forma eficiente.
 
-- **datasets**: A biblioteca `datasets` da Hugging Face permite o fácil acesso e manipulação de datasets de NLP. No nosso caso, estamos usando o dataset LIAR, que contém declarações politicas que são classificadas como verdadeiras ou falsas.
+- **Torch**: Utilizada para gerenciamento do treinamento, cálculo da perda e otimização dos parâmetros do modelo.
 
+- **Transformers**: Biblioteca da Hugging Face que fornece modelos pré-treinados e tokenizadores para tarefas de NLP.
+
+---
+## Hardware e Uso de Memória
+
+### **Requisitos de Hardware**
+
+- **Treinamento na GPU:** Recomenda-se pelo menos uma GPU com 8GB de VRAM para treinamento eficiente, especialmente para o modelo professor (`mpnet-base-v2`).
+
+- **Treinamento na CPU:** Possível, mas significativamente mais lento. O modelo aluno (`MiniLM-L3-v2`) pode ser treinado de maneira mais viável na CPU devido ao seu tamanho reduzido.
+
+- **Memória RAM:** Pelo menos 8GB recomendados para evitar gargalos no processamento dos dados.
+
+---
+### **Gerenciamento de Memória**
+
+- Modelos maiores podem gerar erros de `CUDA out of memory`, especialmente em GPUs menores. Para mitigar:
+  - Reduza o `batch_size`.
+  - Utilize modelos mais leves como professor.
+  - Libere memória da GPU com `torch.cuda.empty_cache()`.
+  - Force o treinamento na CPU se necessário.
 
 ---
 ## Carregando os Modelos:
 
-- **teacher_model**: O modelo professor é o BERT, um modelo de linguagem grande. Ele é carregado usando a função `BertForSequenceClassification.from_pretrained()`, onde o modelo foi pré-treinado no dataset "uncased", ou seja, sem diferenciação entre maiúsculas e minúsculas.
+- **Modelo Professor:** `paraphrase-mpnet-base-v2`, um modelo avançado de embeddings de frases, utilizado para fornecer previsões que servirão de base para o treinamento do modelo aluno.
 
-- **student_model**: O modelo aluno é o DistilBERT, uma versão compacta e mais eficiente do BERT. Ele também é carregado da mesma forma que o modelo BERT, mas com menos parâmetros.
-
----
-## Carregando o Tokenizer:
-
-- **tokenizer**: O tokenizer é utilizado para transformar o texto bruto em tokens que o modelo pode entender. O `DistilBertTokenizer` é o tokenizer associado ao modelo DistilBERT. Ele transforma o texto de entrada em tokens, que são então convertidos para IDs que o modelo pode processar. A tokenização é importante para que o modelo consiga entender e processar as palavras de maneira eficiente.
+- **Modelo Aluno:** `paraphrase-MiniLM-L3-v2`, uma versão compacta do modelo professor, treinado para imitar seu comportamento com menos parâmetros e maior eficiência computacional.
 
 ---
-## Carregando o Dataset LIAR:
-- O dataset LIAR é carregado usando a função `load_dataset("ucsbnlp/liar")` da biblioteca `datasets`. Este dataset contém afirmações de políticos, que são rotuladas como "verdadeiras", "falsas", "majoritariamente verdadeiras", "majoritariamente falsas", "sem base para conclusão" etc.
+## Carregando o Dataset AG News:
 
-- As declarações do dataset são passadas por um pré-processamento para garantir que os textos sejam tokenizados e estruturados corretamente para o treinamento.
-
----
-## Função de Pré-processamento:
-- A função `preprocess_function` é definida para tokenizar as declarações do dataset, limitando o comprimento dos textos para 128 tokens. O tokenizador converte o texto em IDs que podem ser processados pelo modelo.
+- O dataset AG News é carregado usando a função `load_dataset("ag_news")`. Ele contém notícias classificadas em quatro categorias.
+- Criamos um conjunto reduzido de treino para o modelo professor e um dataset de avaliação.
+- Também geramos um dataset não rotulado para a destilação do modelo aluno.
 
 ---
-## Função de Perda de Distilação:
-- A função `distillation_loss` calcula a perda combinada de distilação e de classificação. 
+## Configuração do Treinamento:
 
-- **Distilação**: A perda de distilação utiliza a divergência de Kullback-Leibler (KL) para comparar as distribuições de probabilidade entre o modelo aluno e o modelo professor.
+- **Treinamento do Professor:** Utilizamos o `Trainer` da biblioteca SetFit para treinar o modelo professor com um subconjunto do dataset.
 
-- **Perda de Classificação**: Além disso, a função também calcula a perda de entropia cruzada entre os logits do aluno e os rótulos reais.
-
-- O objetivo é minimizar a diferença entre as previsões do modelo aluno e do professor, além de melhorar a precisão do modelo aluno em relação aos rótulos reais.
-
----
-## Modificando o Trainer:
-- O `Trainer` é uma classe fornecida pela Hugging Face para treinar modelos. A classe `DistillationTrainer` herda de `Trainer` e sobrescreve a função `compute_loss` para incluir o cálculo da perda de distilação, utilizando o modelo professor e o modelo aluno.
+- **Treinamento do Aluno:** Após o treinamento do professor, utilizamos a classe `DistillationTrainer`, que permite transferir conhecimento do modelo maior para o menor utilizando os dados não rotulados.
 
 ---
 ## Inicializando o Treinamento:
-- O `DistillationTrainer` é inicializado com os modelos, o dataset de treinamento e de avaliação, e os parâmetros de treinamento.
 
-- O treinamento do modelo é iniciado com a função `trainer.train()`, que vai otimizar os parâmetros do modelo aluno com base na distilação do modelo professor.
+- O `DistillationTrainer` é inicializado com os modelos, os datasets e os parâmetros de treinamento.
 
----
-## Explicando os Conceitos:
-
-- **Softmax**: A função Softmax é usada para transformar os logits de um modelo (os valores brutos antes da normalização) em probabilidades. Isso é essencial para a comparação entre as previsões do aluno e do professor.
-
-- **KL Divergence**: A divergência de Kullback-Leibler é uma medida de diferença entre duas distribuições de probabilidade. No contexto da distilação, ela é usada para calcular a diferença entre as distribuições de probabilidade das previsões do aluno e do professor.
+- O treinamento do modelo aluno é realizado com `trainer.train()`, otimizando seus pesos para aproximar suas previsões às do modelo professor.
 
 ---
 ## Conclusão
-- Com esse código, conseguimos treinar um modelo mais leve, o DistilBERT, para classificar declarações políticas, enquanto aproveitamos o conhecimento de um modelo maior e mais preciso, o BERT.
+
+- Nosso objetivo é ter como resultado um modelo eficiente em termos de memória e tempo de inferência, adequado para aplicações em dispositivos com recursos limitados.
